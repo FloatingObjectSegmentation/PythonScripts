@@ -1,4 +1,5 @@
 import sys
+from random import randint
 # Input: Lidar TXT file, PBBMDF file
 # Output: PBBMDF all points including bbox vertices transformed to lidar file's space, to Lidar format:
 #            x y z 0 0 0
@@ -12,7 +13,8 @@ import sys
 
 
 
-
+def rndstring():
+    return ' '.join([str(randint(0, 65000)) for l in range(3)])
 
 if __name__ == "__main__":
 
@@ -35,7 +37,11 @@ if __name__ == "__main__":
     aug = open(file_pbbmdf, 'r').readlines()
     aug = [l.split(" ") for l in aug]
     aug = [[b.split(",") for b in l] for l in aug]
-    aug = [[" ".join([str(float(b[0]) + (minx if sys.argv[4] == '0' else 0)), str(float(b[1]) + (miny if sys.argv[4] == '0' else 0)), str(float(b[2]) + (minz if sys.argv[4] == '0' else 0))]) + " 0 0 0" for b in
+    aug = [[" ".join(
+        [str(float(b[0]) + (minx if sys.argv[4] == '0' else 0)),
+         str(float(b[1]) + (miny if sys.argv[4] == '0' else 0)),
+         str(float(b[2]) + (minz if sys.argv[4] == '0' else 0))]
+    ) + " " + rndstring() for b in
             l[:-1]] for l in aug]
     aug = ["\n".join(l) for l in aug]
 
