@@ -12,9 +12,9 @@ if __name__ == "__main__":
         print('NOT ENOUGH ARGUMENTS')
         exit(1)
 
-    file = sys.argv[1]
-    resfile = sys.argv[2]
+    file_lidar_txt = sys.argv[1]
+    file_dest = sys.argv[2]
 
-    a = open(file, 'r').readlines()
-    a = [l for l in a if l[-2] != '0']
-    open(resfile, 'w').write(''.join(a))
+    a = open(file_lidar_txt, 'r').readlines()
+    a = ['-1' for l in a]
+    open(file_dest, 'w').write('3 ' + ' '.join(a))
