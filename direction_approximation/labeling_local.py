@@ -14,6 +14,9 @@ from collections import defaultdict
 imagewidth = 4000
 imageheight = 4000
 
+lidar_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\lidar'
+augmentations_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\augmentation'
+
 def load_augmentation_samples(file, width, height, minx, miny):
     samples = open(file, 'r').readlines()
     if len(samples) == 0:
@@ -26,13 +29,13 @@ def load_augmentation_samples(file, width, height, minx, miny):
 
 def on_init():
 
-    lidar_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\lidar'
-    augmentations_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\augmentation'
     files = [lidar_folder + '\\' + f for f in os.listdir(lidar_folder)]
     pattern = '[0-9]{3}[_]{1}[0-9]{2,3}'
     dataset_names = list(set([x.group(0) for x in [re.search(pattern, match, flags=0) for match in files] if x != None]))
 
     all_bmps = []
+    all_minx = []
+    all_miny = []
     all_samples = []
     for dataset_name in dataset_names:
         print("Loading " + dataset_name)
@@ -40,14 +43,16 @@ def on_init():
         bmp, minx, miny = common.load_points(filename, imagewidth, imageheight, True)
         samples = load_augmentation_samples(augmentations_folder + '\\' + dataset_name + 'augmentation_result.txt', imagewidth, imageheight, minx, miny)
         all_bmps.append(bmp)
+        all_minx.append(minx)
+        all_miny.append(miny)
         all_samples.append(samples)
-    return dataset_names, all_bmps, all_samples
+    return dataset_names, all_bmps, all_samples, all_minx, all_miny
 
 class mainWindow():
 
     def __init__(self):
 
-        self.dataset_names, self.bmps, self.samples = on_init()
+        self.dataset_names, self.bmps, self.samples, self.all_minx, self.all_miny = on_init()
         self.index = -1
         self.current_chosen_points = []
         self.labelings = defaultdict(dict)
@@ -80,7 +85,7 @@ class mainWindow():
         self.save_button = Button(self.frame, text="SAVE", fg="red", command=self.on_save_button_click)
         self.save_button.pack()
 
-        # CANVAS
+        # canvas
         self.canvas = Canvas(self.frame, width=imagewidth, height=imageheight, scrollregion=(0,0, imagewidth, imageheight))
         hbar = Scrollbar(self.frame, orient=HORIZONTAL)
         hbar.pack(side=BOTTOM, fill=X)
@@ -148,7 +153,33 @@ class mainWindow():
         self.render_current_sample_and_image()
 
     def on_save_button_click(self):
-        pass
+
+        for dataset_index, dataset_name in enumerate(self.dataset_names):
+
+            aug_index_to_points = self.selected_points_by_dataset[dataset_name]
+            lines = open(augmentations_folder + '\\' + dataset_name + 'augmentation_result.txt', 'r').readlines()
+            lines = [l.replace('\n', '') for l in lines]
+            transformed_lines = []
+            for i in range(len(lines)):
+
+                current_points = aug_index_to_points[i]
+                transformed_points = []
+
+                for j in range(len(current_points)):
+
+                    multiplier = 0
+                    if current_points[j][1] > imageheight / 2:
+                        multiplier = 1
+
+                    x = current_points[j][1] + multiplier * imageheight / 2
+                    y = current_points[j][0]
+
+                    transformed_points.append((x / (imagewidth / 1000.0) + self.all_minx[dataset_index], y / (imagewidth / 1000.0) + self.all_miny[dataset_index]))
+
+                transformed_lines.append(lines[i] + " " + ','.join([str(x) for x in transformed_points]))
+            new_lines = '\n'.join(transformed_lines)
+            open(augmentations_folder + '\\' + dataset_name + 'augmentation_result_transformed.txt', 'w').write(new_lines)
+            print(augmentations_folder + '\\' + dataset_name + 'augmentation_result_transformed.txt saved')
 
     ###### auxiliary #####
     def render_image_on_canvas_by_index_and_set_new_samples(self, index):
