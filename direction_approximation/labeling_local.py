@@ -9,63 +9,75 @@ import common
 import random_points
 from tkinter import *
 from PIL import Image, ImageTk
-
+from collections import defaultdict
 
 imagewidth = 4000
 imageheight = 4000
 
-
-
-    # load all lidar txt files
-    # foreach lidar txt file:
-        # translate to bmp
-        # pick K points
-        # for each point:
-
-            # render bmp
-            # first determine general direction for whole bmp
-            # render point
-            # user clicks 2 points that define the line of direction
-            # user clicks on some control that indicates that the labeling is over OR
-            # determines another direction in the same way
-
-        # save everything
+def load_augmentation_samples(file, width, height, minx, miny):
+    samples = open(file, 'r').readlines()
+    if len(samples) == 0:
+        return
+    samples = [l.split(' ')[1] for l in samples]
+    samples = [l.split(',') for l in samples]
+    samples = [(float(l[0]) - minx, float(l[1]) - miny) for l in samples]
+    samples = [(x[0] * width / 1000.0, x[1] * height / 1000.0) for x in samples]
+    return samples
 
 def on_init():
 
-    lidar_folder = 'E:\workspaces\LIDAR_WORKSPACE\lidar'
+    lidar_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\lidar'
+    augmentations_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\augmentation'
     files = [lidar_folder + '\\' + f for f in os.listdir(lidar_folder)]
     pattern = '[0-9]{3}[_]{1}[0-9]{2,3}'
-    dataset_names = set([x.group(0) for x in [re.search(pattern, match, flags=0) for match in files] if x != None])
+    dataset_names = list(set([x.group(0) for x in [re.search(pattern, match, flags=0) for match in files] if x != None]))
 
     all_bmps = []
     all_samples = []
     for dataset_name in dataset_names:
         print("Loading " + dataset_name)
         filename = lidar_folder + '\\' + dataset_name + '.txt'
-        bmp = common.load_points(filename, imagewidth, imageheight, True)
-        #samples = random_points.generate_samples(imagewidth, 30, 200)
-        samples = [] #samples[15, :]
+        bmp, minx, miny = common.load_points(filename, imagewidth, imageheight, True)
+        samples = load_augmentation_samples(augmentations_folder + '\\' + dataset_name + 'augmentation_result.txt', imagewidth, imageheight, minx, miny)
         all_bmps.append(bmp)
         all_samples.append(samples)
-    return all_bmps, all_samples
+    return dataset_names, all_bmps, all_samples
 
 class mainWindow():
 
     def __init__(self):
 
-        self.bmps, self.samples = on_init()
+        self.dataset_names, self.bmps, self.samples = on_init()
         self.index = -1
+        self.current_chosen_points = []
+        self.labelings = defaultdict(dict)
+        self.currsampleidx = -1
+        self.currsamples = []
         self.init_tkinter()
+
 
     def init_tkinter(self):
         self.root = Tk()
         self.frame = Frame(self.root, width=imagewidth, height=imageheight)
         self.frame.pack()
 
+        # next button
         self.button = Button(self.frame, text="NEXT", fg="red", command=self.on_next_button_click)
         self.button.pack()
 
+        # next sample button
+        self.next_sample_button = Button(self.frame, text="NEXT SAMPLE", fg="red", command=self.on_next_sample_button_click)
+        self.next_sample_button.pack()
+
+        # cancel button
+        self.cancel_button = Button(self.frame, text="CANCEL", fg="red", command=self.on_cancel_button_click)
+        self.cancel_button.pack()
+
+        # save button
+        self.save_button = Button(self.frame, text="SAVE", fg="red", command=self.on_save_button_click)
+        self.save_button.pack()
+
+        # CANVAS
         self.canvas = Canvas(self.frame, width=imagewidth, height=imageheight, scrollregion=(0,0, imagewidth, imageheight))
         hbar = Scrollbar(self.frame, orient=HORIZONTAL)
         hbar.pack(side=BOTTOM, fill=X)
@@ -79,29 +91,101 @@ class mainWindow():
         self.canvas.place(x=-2, y=-2)
 
         self.canvas.pack(side=LEFT, expand=True, fill=BOTH)
-        
-
-
 
         self.canvas.bind("<Button-1>", self.on_canvas_click)
 
         self.root.update()
         self.root.mainloop()
 
-    def render_image_on_canvas(self, data):
-        self.im = Image.frombytes('L', (data.shape[1], data.shape[0]), data.astype('b').tostring())
-        self.photo = ImageTk.PhotoImage(image=self.im)
-        self.canvas.create_image(0, 0, image=self.photo, anchor=NW)
-
+    ####### callbacks #######
     def on_canvas_click(self, event):
+        # append the next point, if the new pair is completed, draw a new line!
         print("clicked at " + str(event.x) + " " + str(event.y))
+        self.current_chosen_points.append((event.x, event.y))
+        if len(self.current_chosen_points) % 2 == 0:
+            self.canvas.create_line(self.current_chosen_points[-1][0], self.current_chosen_points[-1][1], self.current_chosen_points[-2][0], self.current_chosen_points[-2][1], fill='blue')
 
     def on_next_button_click(self):
 
-        self.index += 1
-        if len(self.bmps) >= self.index:
-            self.render_image_on_canvas(255 * self.bmps[self.index])
+        if self.index < len(self.dataset_names):
+
+            # save the labelings into a data structure, delete from canvas
+            self.labelings[self.dataset_names[self.index]][self.currsampleidx] = self.current_chosen_points.copy()
+            self.current_chosen_points = []
+            self.canvas.delete("all")
+
+            self.index += 1
+
+            self.render_image_on_canvas_by_index_and_set_new_samples(self.index)
         else:
             print("LABELING FINISHED")
+
+    def on_next_sample_button_click(self):
+
+        self.currsampleidx += 1
+
+        # move to next sample and render it.
+        if (self.currsampleidx < len(self.currsamples)):
+
+            self.currsample = self.currsamples[self.currsampleidx]
+            print('Currently working on sample: ', self.currsample)
+
+            if (self.currsample[1] > imageheight / 2):
+                self.reset_image_to_apriori_state(isbottom=True)
+                try:
+                    xleft = self.currsample[0] - 100
+                    yleft = self.currsample[1] - imageheight / 2 - 100
+                    xright = self.currsample[0] + 100
+                    yright = self.currsample[1] - imageheight / 2 + 100
+                    print('Its transformation is: ', xleft, yleft, xright, yright)
+                    self.canvas.create_oval(xleft, yleft, xright, yright, fill='green')
+                except:
+                    print("Out of bounds!")
+
+            else:
+                self.reset_image_to_apriori_state(isbottom=False)
+                try:
+                    xleft = self.currsample[0] - 100
+                    yleft = self.currsample[1] - 100
+                    xright = self.currsample[0] + 100
+                    yright = self.currsample[1] +100
+                    print('Its transformation is: ', xleft, yleft, xright, yright)
+                    self.canvas.create_oval(self.currsample[0] - 100, self.currsample[1] - 100,
+                                            self.currsample[0] + 100,
+                                            self.currsample[1] + 100, fill='green')
+                except:
+                    print("Out of bounds!")
+
+
+        else:
+            print("Reached the final sample before!")
+
+    def on_cancel_button_click(self):
+        self.current_chosen_lines = []
+        self.render_image_on_canvas_by_index_and_set_new_samples(self.index)
+
+    def on_save_button_click(self):
+        pass
+
+    ###### auxiliary #####
+    def render_image_on_canvas_by_index_and_set_new_samples(self, index):
+        self.render_image_on_canvas(255 * self.bmps[self.index])
+        self.currsamples = self.samples[self.index]
+        self.currsampleidx = -1
+
+    def reset_image_to_apriori_state(self, isbottom=False):
+        self.canvas.delete("all")
+        self.render_image_on_canvas(255 * self.bmps[self.index], isbottom)
+
+    def render_image_on_canvas(self, data, isbottom=False):
+        if isbottom:
+            data = data[:int(data.shape[0] / 2),:]
+        else:
+            data = data[int(data.shape[0] / 2):, :]
+        self.im = Image.frombytes('L', (data.shape[1], data.shape[0]), data.astype('b').tostring())
+        self.photo = ImageTk.PhotoImage(image=self.im)
+        self.canvas.create_image(0, 0, image=self.photo, anchor=NW)
+        self.currimage = data
+
 
 mainWindow()
