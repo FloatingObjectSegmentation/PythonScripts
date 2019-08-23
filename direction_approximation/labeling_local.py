@@ -53,6 +53,9 @@ class mainWindow():
         self.labelings = defaultdict(dict)
         self.currsampleidx = -1
         self.currsamples = []
+        self.current_chosen_points = []
+        self.selected_points = {}
+        self.selected_points_by_dataset = {}
         self.init_tkinter()
 
 
@@ -107,62 +110,42 @@ class mainWindow():
 
     def on_next_button_click(self):
 
+        print(self.selected_points)
         if self.index < len(self.dataset_names):
 
-            # save the labelings into a data structure, delete from canvas
-            self.labelings[self.dataset_names[self.index]][self.currsampleidx] = self.current_chosen_points.copy()
-            self.current_chosen_points = []
-            self.canvas.delete("all")
+            self.selected_points_by_dataset[self.dataset_names[self.index]] = self.selected_points.copy()
+            self.selected_points = {}
 
             self.index += 1
 
-            self.render_image_on_canvas_by_index_and_set_new_samples(self.index)
+            if self.index < len(self.dataset_names):
+                self.canvas.delete("all")
+                self.render_image_on_canvas_by_index_and_set_new_samples(self.index)
         else:
             print("LABELING FINISHED")
 
     def on_next_sample_button_click(self):
 
+        if (self.currsampleidx > -1):
+            self.selected_points[self.currsampleidx] = self.current_chosen_points.copy()
+            self.current_chosen_points = []
+
         self.currsampleidx += 1
 
-        # move to next sample and render it.
         if (self.currsampleidx < len(self.currsamples)):
 
             self.currsample = self.currsamples[self.currsampleidx]
             print('Currently working on sample: ', self.currsample)
 
-            if (self.currsample[1] > imageheight / 2):
-                self.reset_image_to_apriori_state(isbottom=True)
-                try:
-                    xleft = self.currsample[0] - 100
-                    yleft = self.currsample[1] - imageheight / 2 - 100
-                    xright = self.currsample[0] + 100
-                    yright = self.currsample[1] - imageheight / 2 + 100
-                    print('Its transformation is: ', xleft, yleft, xright, yright)
-                    self.canvas.create_oval(xleft, yleft, xright, yright, fill='green')
-                except:
-                    print("Out of bounds!")
-
-            else:
-                self.reset_image_to_apriori_state(isbottom=False)
-                try:
-                    xleft = self.currsample[0] - 100
-                    yleft = self.currsample[1] - 100
-                    xright = self.currsample[0] + 100
-                    yright = self.currsample[1] +100
-                    print('Its transformation is: ', xleft, yleft, xright, yright)
-                    self.canvas.create_oval(self.currsample[0] - 100, self.currsample[1] - 100,
-                                            self.currsample[0] + 100,
-                                            self.currsample[1] + 100, fill='green')
-                except:
-                    print("Out of bounds!")
+            self.render_current_sample_and_image()
 
 
         else:
             print("Reached the final sample before!")
 
     def on_cancel_button_click(self):
-        self.current_chosen_lines = []
-        self.render_image_on_canvas_by_index_and_set_new_samples(self.index)
+        self.current_chosen_points = []
+        self.render_current_sample_and_image()
 
     def on_save_button_click(self):
         pass
@@ -171,11 +154,39 @@ class mainWindow():
     def render_image_on_canvas_by_index_and_set_new_samples(self, index):
         self.render_image_on_canvas(255 * self.bmps[self.index])
         self.currsamples = self.samples[self.index]
+        print('Current augmentables: ', self.currsamples)
         self.currsampleidx = -1
 
     def reset_image_to_apriori_state(self, isbottom=False):
         self.canvas.delete("all")
         self.render_image_on_canvas(255 * self.bmps[self.index], isbottom)
+
+    def render_current_sample_and_image(self):
+        if (self.currsample[1] > imageheight / 2):
+            self.reset_image_to_apriori_state(isbottom=True)
+            try:
+                xleft = max(0, self.currsample[0] - 100)
+                yleft = max(0, self.currsample[1] - imageheight / 2 - 100)
+                xright = self.currsample[0] + 100
+                yright = self.currsample[1] - imageheight / 2 + 100
+                print('Its transformation is: ', xleft, yleft, xright, yright)
+                self.canvas.create_oval(xleft, yleft, xright, yright, fill='green')
+            except:
+                print("Out of bounds!")
+
+        else:
+            self.reset_image_to_apriori_state(isbottom=False)
+            try:
+                xleft = max(0, self.currsample[0] - 100)
+                yleft = max(0, self.currsample[1] - 100)
+                xright = self.currsample[0] + 100
+                yright = self.currsample[1] + 100
+                print('Its transformation is: ', xleft, yleft, xright, yright)
+                self.canvas.create_oval(self.currsample[0] - 100, self.currsample[1] - 100,
+                                        self.currsample[0] + 100,
+                                        self.currsample[1] + 100, fill='green')
+            except:
+                print("Out of bounds!")
 
     def render_image_on_canvas(self, data, isbottom=False):
         if isbottom:
