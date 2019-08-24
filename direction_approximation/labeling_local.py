@@ -13,19 +13,38 @@ from collections import defaultdict
 
 imagewidth = 4000
 imageheight = 4000
+SHOW_ALREADY_LABELED = True
 
-lidar_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\lidar'
-augmentations_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\augmentation'
+lidar_folder = 'E:\\workspaces\\test_workspace\\lidar'
+augmentations_folder = 'E:\\workspaces\\test_workspace\\augmentation'
 
 def load_augmentation_samples(file, width, height, minx, miny):
     samples = open(file, 'r').readlines()
     if len(samples) == 0:
         return
+
+    # verify whether there are labels
+    all_labels = []
+    for line in samples:
+        if line.find('[') != -1:
+            idx = line.find('[')
+            labels = line[idx+1:-2]
+            labels = labels.split(';')
+            labels = [l.split(',') for l in labels]
+            labels = [(float(l[0][1:-1]) - minx, float(l[1][1:-1]) - miny) for l in labels]
+            labels = [(x[0] * width / 1000.0, x[1] * height / 1000.0) for x in labels]
+        else:
+            labels = []
+        all_labels.append(labels)
+
+
+
     samples = [l.split(' ')[1] for l in samples]
     samples = [l.split(',') for l in samples]
     samples = [(float(l[0]) - minx, float(l[1]) - miny) for l in samples]
     samples = [(x[0] * width / 1000.0, x[1] * height / 1000.0) for x in samples]
-    return samples
+    return samples, all_labels
+
 
 def on_init():
 
@@ -37,22 +56,24 @@ def on_init():
     all_minx = []
     all_miny = []
     all_samples = []
+    all_labels = []
     for dataset_name in dataset_names:
         print("Loading " + dataset_name)
         filename = lidar_folder + '\\' + dataset_name + '.txt'
         bmp, minx, miny = common.load_points(filename, imagewidth, imageheight, True)
-        samples = load_augmentation_samples(augmentations_folder + '\\' + dataset_name + 'augmentation_result.txt', imagewidth, imageheight, minx, miny)
+        samples, labels = load_augmentation_samples(augmentations_folder + '\\' + dataset_name + 'augmentation_result_transformed.txt', imagewidth, imageheight, minx, miny)
         all_bmps.append(bmp)
         all_minx.append(minx)
         all_miny.append(miny)
         all_samples.append(samples)
-    return dataset_names, all_bmps, all_samples, all_minx, all_miny
+        all_labels.append(labels)
+    return dataset_names, all_bmps, all_samples, all_labels, all_minx, all_miny
 
 class mainWindow():
 
     def __init__(self):
 
-        self.dataset_names, self.bmps, self.samples, self.all_minx, self.all_miny = on_init()
+        self.dataset_names, self.bmps, self.samples, self.all_labels, self.all_minx, self.all_miny = on_init()
         self.index = -1
         self.current_chosen_points = []
         self.labelings = defaultdict(dict)
@@ -61,6 +82,35 @@ class mainWindow():
         self.current_chosen_points = []
         self.selected_points = {}
         self.selected_points_by_dataset = {}
+
+        # paint the labels!
+        for idx in range(len(self.dataset_names)):
+            X = self.bmps[idx]
+            for sampidx in range(len(self.all_labels[idx])):
+
+                color = 0.1
+                for pointidx in range(len(self.all_labels[idx][sampidx])):
+                    if pointidx % 2 == 0:
+                        color = random.random()
+                    x = int(self.all_labels[idx][sampidx][pointidx][0])
+                    y = int(self.all_labels[idx][sampidx][pointidx][1])
+                    X[max(0, x - 20):min(x + 20, X.shape[0]), max(0, y - 20):min(y + 20, X.shape[1])] = color
+            self.bmps[idx] = X
+
+        # paint the samples
+        # for idx in range(len(self.dataset_names)):
+        #     X = self.bmps[idx]
+        #     for sampidx in range(len(self.samples[idx])):
+        #         color = random.random()
+        #         x = int(self.samples[idx][sampidx][0])
+        #         y = int(self.samples[idx][sampidx][1])
+        #
+        #         xleft, xright = max(0, x - 50), min(x + 50, X.shape[0])
+        #         yleft, yright = max(0, y - 50), min(y + 50, X.shape[1])
+        #         X[xleft:xright, yleft:yright] = color
+        #     self.bmps[idx] = X
+
+
         self.init_tkinter()
 
 
@@ -109,9 +159,9 @@ class mainWindow():
     def on_canvas_click(self, event):
         # append the next point, if the new pair is completed, draw a new line!
         print("clicked at " + str(event.x) + " " + str(event.y))
-        self.current_chosen_points.append((event.x, event.y))
+        self.current_chosen_points.append((event.y, event.x))
         if len(self.current_chosen_points) % 2 == 0:
-            self.canvas.create_line(self.current_chosen_points[-1][0], self.current_chosen_points[-1][1], self.current_chosen_points[-2][0], self.current_chosen_points[-2][1], fill='blue')
+            self.canvas.create_line(self.current_chosen_points[-1][1], self.current_chosen_points[-1][0], self.current_chosen_points[-2][1], self.current_chosen_points[-2][0], fill='blue')
 
     def on_next_button_click(self):
 
@@ -168,15 +218,15 @@ class mainWindow():
                 for j in range(len(current_points)):
 
                     multiplier = 0
-                    if current_points[j][1] > imageheight / 2:
+                    if self.samples[dataset_index][i][0] > imageheight / 2:
                         multiplier = 1
 
-                    x = current_points[j][1] + multiplier * imageheight / 2
-                    y = current_points[j][0]
+                    x = current_points[j][0] + multiplier * imageheight / 2
+                    y = current_points[j][1]
 
                     transformed_points.append((x / (imagewidth / 1000.0) + self.all_minx[dataset_index], y / (imagewidth / 1000.0) + self.all_miny[dataset_index]))
 
-                transformed_lines.append(lines[i] + " " + ','.join([str(x) for x in transformed_points]))
+                transformed_lines.append(lines[i] + " [" + ';'.join([str(x) for x in transformed_points]) + "]")
             new_lines = '\n'.join(transformed_lines)
             open(augmentations_folder + '\\' + dataset_name + 'augmentation_result_transformed.txt', 'w').write(new_lines)
             print(augmentations_folder + '\\' + dataset_name + 'augmentation_result_transformed.txt saved')
@@ -193,14 +243,14 @@ class mainWindow():
         self.render_image_on_canvas(255 * self.bmps[self.index], isbottom)
 
     def render_current_sample_and_image(self):
-        if (self.currsample[1] > imageheight / 2):
+        if (self.currsample[0] > imageheight / 2):
             self.reset_image_to_apriori_state(isbottom=True)
             try:
-                xleft = max(0, self.currsample[0] - 100)
-                yleft = max(0, self.currsample[1] - imageheight / 2 - 100)
-                xright = self.currsample[0] + 100
-                yright = self.currsample[1] - imageheight / 2 + 100
-                print('Its transformation is: ', xleft, yleft, xright, yright)
+                xleft = max(0, self.currsample[1] - 100)
+                yleft = max(0, self.currsample[0] - imageheight / 2 - 100)
+                xright = self.currsample[1] + 100
+                yright = self.currsample[0] - imageheight / 2 + 100
+                print('Its transformation is: ', yleft, xleft, yright, xright)
                 self.canvas.create_oval(xleft, yleft, xright, yright, fill='green')
             except:
                 print("Out of bounds!")
@@ -208,22 +258,20 @@ class mainWindow():
         else:
             self.reset_image_to_apriori_state(isbottom=False)
             try:
-                xleft = max(0, self.currsample[0] - 100)
-                yleft = max(0, self.currsample[1] - 100)
-                xright = self.currsample[0] + 100
-                yright = self.currsample[1] + 100
+                xleft = max(0, self.currsample[1] - 100)
+                yleft = max(0, self.currsample[0] - 100)
+                xright = self.currsample[1] + 100
+                yright = self.currsample[0] + 100
                 print('Its transformation is: ', xleft, yleft, xright, yright)
-                self.canvas.create_oval(self.currsample[0] - 100, self.currsample[1] - 100,
-                                        self.currsample[0] + 100,
-                                        self.currsample[1] + 100, fill='green')
+                self.canvas.create_oval(xleft, yleft, xright, yright, fill='green')
             except:
                 print("Out of bounds!")
 
     def render_image_on_canvas(self, data, isbottom=False):
         if isbottom:
-            data = data[:int(data.shape[0] / 2),:]
+            data = data[int(data.shape[0] / 2):,:]
         else:
-            data = data[int(data.shape[0] / 2):, :]
+            data = data[:int(data.shape[0] / 2), :]
         self.im = Image.frombytes('L', (data.shape[1], data.shape[0]), data.astype('b').tostring())
         self.photo = ImageTk.PhotoImage(image=self.im)
         self.canvas.create_image(0, 0, image=self.photo, anchor=NW)
