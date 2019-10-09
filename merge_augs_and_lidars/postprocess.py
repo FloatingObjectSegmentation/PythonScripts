@@ -32,7 +32,6 @@ for dataset_name in dataset_names:
         a = points[i].split(' ')
         X[i, :] = np.array([float(a[0]), float(a[1]), float(a[2])])
 
-
     # prepare targets
     y = np.zeros(len(points))
 
