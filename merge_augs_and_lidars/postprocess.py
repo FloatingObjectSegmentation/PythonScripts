@@ -21,7 +21,8 @@ def is_lidar_file(filename):
 # load the lidar file
 files = [lidar_folder + '\\' + f for f in os.listdir(lidar_folder)]
 pattern = '[0-9]{3}[_]{1}[0-9]{2,3}'
-dataset_names = set([x.group(0) for x in [re.search(pattern, match, flags=0) for match in files] if x != None])
+dataset_names = list(set([x.group(0) for x in [re.search(pattern, match, flags=0) for match in files] if x != None]))
+dataset_names.sort()
 
 for dataset_name in dataset_names:
 
@@ -52,7 +53,7 @@ for dataset_name in dataset_names:
         idx2 = a.find(']')
         points.append(a[idx1 + 1:idx2])
     points = [x for x in points if x != ''] # get rid of augmentations that the lidar did not hit at all
-    points = [[tuple([float(z[3:]) for z in y.split(' ')]) for y in x.split(',')] for x in points]
+    points = [[tuple([float(z[2:]) for z in y.split(' ')]) for y in x.split(',')] for x in points]
 
     # zip these together
     aug_pts_and_dists = [(float(x),y) for x,y in zip(rbnn_vals, points)] # only take the augs above the desired threshold
@@ -70,6 +71,7 @@ for dataset_name in dataset_names:
 
 
     # construct final matrix
+    print('saving ' + dataset_name)
     y_augs = np.ones(X_augs.shape[0])
     X = np.concatenate((X, X_augs))
     y = np.concatenate((y, y_augs))
