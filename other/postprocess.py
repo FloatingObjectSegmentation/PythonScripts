@@ -4,8 +4,8 @@ import re
 from collections import defaultdict
 
 
-lidar_folder = 'E:\workspaces\LIDAR_WORKSPACE\lidar'
-labeling_folder = 'E:\workspaces\LIDAR_WORKSPACE\lidar\labels'
+lidar_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\lidar'
+labeling_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\lidar\\labels'
 augmentations_folder = 'E:/workspaces/LIDAR_WORKSPACE/lidar/augmentation'
 rbnn_val = 3
 result_savefile = 'E:/workspaces/LIDAR_WORKSPACE/results/data'
