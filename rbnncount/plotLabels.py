@@ -109,43 +109,43 @@ def sumall(dataset, rbnn_r):
 ax = plt.subplot(221)
 for dataset in labels.keys():
     x = [3, 5, 8]
-    y = [labels[dataset][rbnn_r]['3'] / labels[dataset]['3']['3'] for rbnn_r in sorted(labels[dataset].keys())]
+    y = [labels[dataset][rbnn_r]['3'] for rbnn_r in sorted(labels[dataset].keys())]
     plt.plot(x,y, color=colors[dataset], label=dataset)
 ax.title.set_text('Negative')
 ax.legend(loc='upper right')
 plt.xlabel('RBNN radius r')
-plt.ylabel('recall')
+plt.ylabel('number of candidates')
 # maybe
 ax = plt.subplot(222)
 for dataset in labels.keys():
     x = [3, 5, 8]
-    y = [labels[dataset][rbnn_r]['2'] / labels[dataset]['3']['2'] if '2' in labels[dataset][rbnn_r] else 0 for rbnn_r in sorted(labels[dataset].keys())]
+    y = [labels[dataset][rbnn_r]['2']  if '2' in labels[dataset][rbnn_r] else 0 for rbnn_r in sorted(labels[dataset].keys())]
     plt.plot(x,y, color=colors[dataset], label=dataset)
 ax.title.set_text('Maybe positive')
 ax.legend(loc='upper right')
 plt.xlabel('RBNN radius r')
-plt.ylabel('recall')
+plt.ylabel('number of candidates')
 # likely
 ax = plt.subplot(223)
 for dataset in labels.keys():
     x = [3, 5, 8]
-    y = [labels[dataset][rbnn_r]['1'] / labels[dataset]['3']['1'] if '1' in labels[dataset][rbnn_r] else 0 for rbnn_r in sorted(labels[dataset].keys())]
+    y = [labels[dataset][rbnn_r]['1'] if '1' in labels[dataset][rbnn_r] else 0 for rbnn_r in sorted(labels[dataset].keys())]
     plt.plot(x,y, color=colors[dataset], label=dataset)
 ax.title.set_text('Likely positive')
 ax.legend(loc='upper right')
 plt.xlabel('RBNN radius r')
-plt.ylabel('recall')
+plt.ylabel('number of candidates')
 # pos
 ax = plt.subplot(224)
 
 for dataset in labels.keys():
     x = [3, 5, 8]
-    y = [labels[dataset][rbnn_r]['0'] / labels[dataset]['3']['0'] if '0' in labels[dataset][rbnn_r] else 0 for rbnn_r in sorted(labels[dataset].keys())]
+    y = [labels[dataset][rbnn_r]['0'] if '0' in labels[dataset][rbnn_r] else 0 for rbnn_r in sorted(labels[dataset].keys())]
     ax.plot(x,y, color=colors[dataset], label=dataset)
 ax.title.set_text('Positive')
 ax.legend(loc='upper right')
 plt.xlabel('RBNN radius r')
-plt.ylabel('recall')
+plt.ylabel('number of candidates')
 
 plt.legend(loc='upper right')
 plt.show()
