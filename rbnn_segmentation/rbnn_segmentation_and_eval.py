@@ -2,11 +2,10 @@ import os
 import numpy as np
 import re
 import subprocess
-import txt2pcd
+from other import txt2pcd
 import time
 import pickle
 from collections import defaultdict
-import multiprocessing as mp
 
 lidar_folder = 'E:\\workspaces\\LIDAR_WORKSPACE\\lidar'
 augmentations_folder = 'E:/workspaces/LIDAR_WORKSPACE/lidar/augmentation'
@@ -119,34 +118,53 @@ if __name__ == '__main__':
 
 
     # Compute results using multiprocessing
-    partition = partition_list(dataset_names, 5)
-    for chunk in partition:
-
-        wrk = [OneDatasetWork(x) for x in chunk]
-        thr = [mp.Process(target=x.work, args=()) for x in wrk]
-
-        for i in range(len(wrk)):
-            thr[i].start()
-
-        for i in range(len(wrk)):
-            thr[i].join()
+    # partition = partition_list(dataset_names, 5)
+    # for chunk in partition:
+    #
+    #     wrk = [OneDatasetWork(x) for x in chunk]
+    #     thr = [mp.Process(target=x.work, args=()) for x in wrk]
+    #
+    #     for i in range(len(wrk)):
+    #         thr[i].start()
+    #
+    #     for i in range(len(wrk)):
+    #         thr[i].join()
 
     # aggregate the results
-    rbnnval_to_confmat = defaultdict(defaultdict(int))
+    rbnnval_to_confmat = {}
+    for r in rbnn_vals:
+        rbnnval_to_confmat[str(r)] = defaultdict(int)
+
     for name in dataset_names:
+
+        print("LOADING RAW DATA")
+        X_orig, X_augs = None, None
+        npypickle = f'{savefolder}/{name}.npy'
+        if not os.path.isfile(npypickle):
+            X_orig = load_points_lidar_dataset(name)
+            X_augs = load_points_augs_dataset(name)
+            pickle.dump((X_orig, X_augs), open(npypickle, 'wb'))
+        else:
+            X_orig, X_augs = pickle.load(open(npypickle, 'rb'))
+        X = np.concatenate((X_orig, X_augs))
+
+
+
+
 
         print("READINGRBNNRESULTS")
         rbnnresultfile = f'{savefolder}/rbnnresult{name}.pcd'
         results = open(rbnnresultfile, 'r').readlines()
-        for line in results:
-
+        for i in range(1, len(results)):
+            line = results[i]
             parts = line.split(' ')
             rbnnval = parts[0]
-            preds = [int(x) > 0 for x in parts[1:]]
+            print(rbnnval)
+            preds = [int(x.rstrip()) > 0 for x in parts[1:-1]]
             for i in range(len(preds)):
 
                 gtru = 1 if i > X_orig.shape[0] else 0
-                pred = 1 if preds[1] > 0 else 0
+                pred = 1 if preds[i] else 0
 
                 if gtru == 0 and pred == 0:
                     rbnnval_to_confmat[rbnnval]['TN'] += 1
@@ -156,3 +174,4 @@ if __name__ == '__main__':
                     rbnnval_to_confmat[rbnnval]['FN'] += 1
                 if gtru == 1 and pred == 1:
                     rbnnval_to_confmat[rbnnval]['TP'] += 1
+        print(rbnnval_to_confmat)
